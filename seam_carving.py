@@ -48,18 +48,65 @@ def calculate_cost_matrix(image: NDArray):
         for col in range(len(cost_matrix[0])):
             if row == 0:
                 cost_matrix[row, col] = gradients[row,col]
-            if col == 0:
+            elif col == 0:
                 cost_matrix[row, col] = gradients[row, col] + \
                                         np.min(cost_matrix[row - 1, col], cost_matrix[row - 1, col + 1])
-            if col == len(cost_matrix[0]) -1 :
+            elif col == len(cost_matrix[0]) -1 :
                 cost_matrix[row, col] = gradients[row, col] + \
                                         np.min(cost_matrix[row - 1, col - 1], cost_matrix[row - 1, col])
-            cost_matrix[row,col] = gradients[row,col] + \
-            np.min(cost_matrix[row-1, col-1], cost_matrix[row-1, col], cost_matrix[row-1, col+1])
+            else:
+                cost_matrix[row,col] = gradients[row,col] + \
+                np.min(cost_matrix[row-1, col-1], cost_matrix[row-1, col], cost_matrix[row-1, col+1])
+    return cost_matrix
+
+def calculate_forward_cost_matrix(image: NDArray):
+    cost_matrix = np.zeros_like(image)
+    for row in range(len(cost_matrix)):
+        for col in range(len(cost_matrix[0])):
+            if row == 0:
+                cost_matrix[row, col] = 0
+            # elif col == 0:
+            #     cost_matrix[row, col] = np.min(cost_matrix[row - 1, col] + calc_cv(row,col),
+            #                                    cost_matrix[row - 1, col + 1]) + calc_cr(row, col)
+            # elif col == len(cost_matrix[0]) - 1:
+            #     cost_matrix[row, col] = np.min(cost_matrix[row - 1, col - 1] + calc_cl(row, col),
+            #                                    cost_matrix[row - 1, col] + calc_cv(row,col))
+            else:
+                cost_matrix[row, col] = np.min(cost_matrix[row - 1, col - 1] + calc_cl(row, col),
+                                               cost_matrix[row - 1, col] + calc_cv(row,col),
+                                               cost_matrix[row - 1, col + 1]) + calc_cr(row, col)
     return cost_matrix
 
 
+def calc_cl(img: NDArray, i: int, j: int) :
+    return np.abs(img[i, j+1]-img[i,j-1]) + np.abs(img[i-1, j]-img[i,j-1])
+
+def calc_cv(img: NDArray, i: int, j: int) :
+    return np.abs(img[i, j+1]-img[i,j-1])
+
+def calc_cr(img: NDArray, i: int, j: int) :
+    return np.abs(img[i, j+1]-img[i,j-1]) + np.abs(img[i-1, j]-img[i,j+1])
+
+
+
 def find_best_seam(cost_matrix: NDArray, indices: NDArray, seams_mask: NDArray):
+    current_seam_mask = np.ones_like(cost_matrix)
+    row = len(cost_matrix) - 1
+    cols = len(cost_matrix[0]) -1
+    col = 0
+    while row >= 0 :
+        if row < len(cost_matrix)-1:
+            min_cost_ind = np.argmin(cost_matrix[row-1, np.max(col-1,0): np.min(col+2, cols)])
+        else :
+            min_cost_ind = np.argmin(cost_matrix[row])
+        current_seam_mask[row, min_cost_ind]
+        seams_mask[row, indices[min_cost_ind]] = 0
+        row -= 1
+        col = min_cost_ind
+    return current_seam_mask
+
+
+def find_best_forward_seam(cost_matrix: NDArray, indices: NDArray, seams_mask: NDArray):
     current_seam_mask = np.ones_like(cost_matrix)
     row = len(cost_matrix) - 1
     cols = len(cost_matrix[0]) -1

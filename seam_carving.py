@@ -89,4 +89,4 @@ def get_visualization(img, img_mask=None, is_vertical=True):
         visual[np.where(img_mask == False)] = seam_colour
     pil_img = Image.fromarray(visual, 'RGB')
     # pil_img.show()
-    return pil_img
+    return visual

@@ -1,5 +1,7 @@
 from typing import Dict, Any
 
+import utils
+
 NDArray = Any
 
 
@@ -18,3 +20,37 @@ def resize(image: NDArray, out_height: int, out_width: int, forward_implementati
     """
     raise NotImplementedError('You need to implement this!')
     # TODO: return { 'resized' : img1, 'vertical_seams' : img2 ,'horizontal_seams' : img3}
+
+
+def backward_resize(image: NDArray, out_height: int, out_width: int, forward_implementation: bool) -> Dict[str, NDArray]:
+    grey_image = utils.to_grayscale(image)
+    gradients = utils.get_gradients(image)
+    seams = []
+
+
+def create_indices_matrix():
+    raise NotImplementedError('You need to implement this!')
+
+def calculate_M():
+    raise NotImplementedError('You need to implement this!')
+
+def find_best_seam():
+    raise NotImplementedError('You need to implement this!')
+
+def remove_seam():
+    raise NotImplementedError('You need to implement this!')
+
+def duplicate_seam():
+    raise NotImplementedError('You need to implement this!')
+
+def update_indices():
+    raise NotImplementedError('You need to implement this!')
+
+def visualize_vertically():
+    raise NotImplementedError('You need to implement this!')
+
+def visualize_horizontally():
+    raise NotImplementedError('You need to implement this!')
+
+def resize_height():
+    raise NotImplementedError('You need to implement this!')

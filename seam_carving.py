@@ -34,14 +34,16 @@ def resize(image: NDArray, out_height: int, out_width: int, forward_implementati
 
 
 def vertical_resize(image: NDArray, k: int,forward_implementation: bool=False ) -> Dict[str, NDArray]:
-    gray_image = utils.to_grayscale(image)
-    seams_mask = np.ones_like(gray_image)
-    indices = create_indices_matrix(len(image), len(image[0]))
+    # gray_image = utils.to_grayscale(image)
 
+    indices = create_indices_matrix(len(image), len(image[0]))
+    gradients = utils.get_gradients(image)
+    seams_mask = np.ones_like(gradients)
     for i in range(np.abs(k)):
-        cost_matrix = calculate_cost_matrix(gray_image)
+        cost_matrix = calculate_cost_matrix(gradients)
         seam_mask = find_best_seam(cost_matrix, indices, seams_mask)
-        gray_image = remove_seam(gray_image, seam_mask)
+        # gray_image = remove_seam(gray_image, seam_mask)
+        gradients = remove_seam(gradients, seam_mask)
         indices = remove_seam(indices, seam_mask)
     return get_new_image(image, seams_mask, k), seams_mask
 
@@ -50,8 +52,7 @@ def create_indices_matrix(rows, cols):
     return np.array([[x for x in range(cols)] for y in range(rows)])
 
 
-def calculate_cost_matrix(image: NDArray):
-    gradients = utils.get_gradients(image)
+def calculate_cost_matrix(gradients: NDArray):
     cost_matrix = np.zeros_like(gradients).astype(float)
     for row in range(len(cost_matrix)):
         for col in range(len(cost_matrix[0])):
@@ -104,9 +105,14 @@ def find_best_seam(cost_matrix: NDArray, indices: NDArray, seams_mask: NDArray):
     cols = len(cost_matrix[0]) -1
     col = 1
     while row >= 0 :
-        if row < len(cost_matrix)-1:
+        if row < len(cost_matrix)-1: #when not in last row
             min_cost_ind = np.argmin(cost_matrix[row-1, max(col-1,0): min(col+2, cols)])
-        else :
+            min_cost_ind = col - 1 +min_cost_ind
+            if min_cost_ind < 0:
+                min_cost_ind = 0
+            elif min_cost_ind > cols:
+                min_cost_ind = cols
+        else : #when in last row:
             min_cost_ind = np.argmin(cost_matrix[row])
         current_seam_mask[row, min_cost_ind] = 0
         seams_mask[row, indices[row,min_cost_ind]] = 0

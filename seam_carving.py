@@ -1,6 +1,5 @@
 from typing import Dict, Any
 
-import numpy as np
 
 import utils
 import numpy as np
@@ -12,7 +11,7 @@ VERTICAL_SEAM_COLOUR = np.array([255, 0, 0])
 HORIZONTAL_SEAM_COLOUR = np.array([0, 0, 0])
 
 
-def resize(image: NDArray, out_height: int, out_width: int, forward_implementation: bool) -> Dict[str, NDArray]:
+def resize(image: NDArray, out_height: int, out_width: int, forward_implementation: bool=False) -> Dict[str, NDArray]:
     """
 
     :param image: ِnp.array which represents an image.
@@ -27,48 +26,47 @@ def resize(image: NDArray, out_height: int, out_width: int, forward_implementati
     """
     height, width = image.shape[:2]
     vert_resize, vert_mask = vertical_resize(image, out_width - width)
-    horiz_resize, horiz_mask = vertical_resize(vert_resize.rotate(), out_height - height)
-    vertical_seams = get_visualization(vert_resize, vert_mask, True)
-    horizontal_seams = get_visualization(horiz_resize, horiz_mask, False)
-    return { 'resized' : get_visualization(horiz_resize), 'vertical_seams' : vertical_seams ,'horizontal_seams' : horizontal_seams}
+    horiz_resize, horiz_mask = vertical_resize(np.rot90(np.copy(vert_resize)), np.abs(out_height - height))
+    vertical_seams = get_visualization(image, vert_mask, True)
+    horizontal_seams = get_visualization(np.copy(horiz_resize), horiz_mask, False)
+    return { 'resized' : np.rot90(np.rot90(np.rot90(horiz_resize))), 'vertical_seams' : vertical_seams ,'horizontal_seams' : np.rot90(np.rot90(np.rot90(horizontal_seams)))}
     # TODO: return { 'resized' : img1, 'vertical_seams' : img2 ,'horizontal_seams' : img3}
 
 
-def vertical_resize(image: NDArray, k: int, forward_implementation: bool) -> Dict[str, NDArray]:
-    grey_image = utils.to_grayscale(image)
-    seams_mask = np.ones_like(image)
-    indices = create_indices_matrix(len(image), len(image[0]))
+def vertical_resize(image: NDArray, k: int,forward_implementation: bool=False ) -> Dict[str, NDArray]:
+    # gray_image = utils.to_grayscale(image)
 
-    for i in range(k) :
-        cost_matrix = calculate_cost_matrix(grey_image)
-        seam_mask = find_best_seam(cost_matrix, indices)
-        remove_seam(grey_image, seam_mask)
-        remove_seam(indices, seam_mask)
-    # update original image
-    # visualize
+    indices = create_indices_matrix(len(image), len(image[0]))
+    gradients = utils.get_gradients(image)
+    seams_mask = np.ones_like(gradients)
+    for i in range(np.abs(k)):
+        cost_matrix = calculate_cost_matrix(gradients)
+        seam_mask = find_best_seam(cost_matrix, indices, seams_mask)
+        # gray_image = remove_seam(gray_image, seam_mask)
+        gradients = remove_seam(gradients, seam_mask)
+        indices = remove_seam(indices, seam_mask)
     return get_new_image(image, seams_mask, k), seams_mask
 
 
 def create_indices_matrix(rows, cols):
-    return [[x for x in range(cols)] for x in range(rows)]
+    return np.array([[x for x in range(cols)] for y in range(rows)])
 
 
-def calculate_cost_matrix(image: NDArray):
-    gradients = utils.get_gradients(image)
-    cost_matrix = np.zeros_like(gradients)
+def calculate_cost_matrix(gradients: NDArray):
+    cost_matrix = np.zeros_like(gradients).astype(float)
     for row in range(len(cost_matrix)):
         for col in range(len(cost_matrix[0])):
             if row == 0:
                 cost_matrix[row, col] = gradients[row,col]
             elif col == 0:
                 cost_matrix[row, col] = gradients[row, col] + \
-                                        np.min(cost_matrix[row - 1, col], cost_matrix[row - 1, col + 1])
+                                        min(cost_matrix[row - 1, col], cost_matrix[row - 1, col + 1])
             elif col == len(cost_matrix[0]) -1 :
                 cost_matrix[row, col] = gradients[row, col] + \
-                                        np.min(cost_matrix[row - 1, col - 1], cost_matrix[row - 1, col])
+                                        min(cost_matrix[row - 1, col - 1], cost_matrix[row - 1, col])
             else:
                 cost_matrix[row,col] = gradients[row,col] + \
-                np.min(cost_matrix[row-1, col-1], cost_matrix[row-1, col], cost_matrix[row-1, col+1])
+                min(cost_matrix[row-1, col-1], cost_matrix[row-1, col], cost_matrix[row-1, col+1])
     return cost_matrix
 
 def calculate_forward_cost_matrix(image: NDArray):
@@ -105,15 +103,21 @@ def find_best_seam(cost_matrix: NDArray, indices: NDArray, seams_mask: NDArray):
     current_seam_mask = np.ones_like(cost_matrix)
     row = len(cost_matrix) - 1
     cols = len(cost_matrix[0]) -1
-    col = 0
+    col = 1
     while row >= 0 :
-        if row < len(cost_matrix)-1:
-            min_cost_ind = np.argmin(cost_matrix[row-1, np.max(col-1,0): np.min(col+2, cols)])
-        else :
+        if row < len(cost_matrix)-1: #when not in last row
+            min_cost_ind = np.argmin(cost_matrix[row-1, max(col-1,0): min(col+2, cols)])
+            min_cost_ind = col - 1 +min_cost_ind
+            if min_cost_ind < 0:
+                min_cost_ind = 0
+            elif min_cost_ind > cols:
+                min_cost_ind = cols
+        else : #when in last row:
             min_cost_ind = np.argmin(cost_matrix[row])
-        current_seam_mask[row, min_cost_ind]
-        seams_mask[row, indices[min_cost_ind]] = 0
-        row -= 1
+        current_seam_mask[row, min_cost_ind] = 0
+        seams_mask[row, indices[row,min_cost_ind]] = 0
+
+        row = row- 1
         col = min_cost_ind
     return current_seam_mask
 
@@ -137,7 +141,8 @@ def find_best_forward_seam(cost_matrix: NDArray, indices: NDArray, seams_mask: N
 
 def remove_seam(img, seam_mask):
     height, width = img.shape[:2]
-    return img[seam_mask].reshape((height, width - 1))
+    new_img = img[seam_mask!=0].reshape(height, width - 1)
+    return new_img
 
 def get_new_image(img, img_mask, k):
     if k > 0:
@@ -159,17 +164,11 @@ def insert_seams(img, img_mask, k):
 
 def remove_seams(img, img_mask, k):
     height, width, c = img.shape
-    new_img = img[img_mask].reshape(height, width - k)
-    return new_img
+    return img[np.where(img_mask == True)].reshape(height, width -abs(k),c)
 
-def update_indices():
-    raise NotImplementedError('You need to implement this!')
 
 def get_visualization(img, img_mask=None, is_vertical=True):
-    visual = img.astype('uint8')
     if img_mask is not None:
         seam_colour = VERTICAL_SEAM_COLOUR if is_vertical else HORIZONTAL_SEAM_COLOUR
-        visual[np.where(img_mask == False)] = seam_colour
-    pil_img = Image.fromarray(visual, 'RGB')
-    # pil_img.show()
-    return visual
+        img[np.where(img_mask == False)] = seam_colour
+    return img

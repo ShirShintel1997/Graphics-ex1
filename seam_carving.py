@@ -26,10 +26,10 @@ def resize(image: NDArray, out_height: int, out_width: int, forward_implementati
     """
     height, width = image.shape[:2]
     vert_resize, vert_mask = vertical_resize(image, out_width - width)
-    horiz_resize, horiz_mask = vertical_resize(np.rot90(vert_resize), np.abs(out_height - height))
+    horiz_resize, horiz_mask = vertical_resize(np.rot90(np.copy(vert_resize)), np.abs(out_height - height))
     vertical_seams = get_visualization(image, vert_mask, True)
-    horizontal_seams = get_visualization(horiz_resize, horiz_mask, False)
-    return { 'resized' : get_visualization(horiz_resize), 'vertical_seams' : vertical_seams ,'horizontal_seams' : horizontal_seams}
+    horizontal_seams = get_visualization(np.copy(horiz_resize), horiz_mask, False)
+    return { 'resized' : np.rot90(np.rot90(np.rot90(horiz_resize))), 'vertical_seams' : vertical_seams ,'horizontal_seams' : np.rot90(np.rot90(np.rot90(horizontal_seams)))}
     # TODO: return { 'resized' : img1, 'vertical_seams' : img2 ,'horizontal_seams' : img3}
 
 
@@ -164,9 +164,7 @@ def insert_seams(img, img_mask, k):
 
 def remove_seams(img, img_mask, k):
     height, width, c = img.shape
-    img_mask = img_mask != 0
-    mask3d = np.array([img_mask for x in range(c)]).reshape(height, width, c)
-    return img[mask3d].reshape(height, width -abs(k),3)
+    return img[np.where(img_mask == True)].reshape(height, width -abs(k),c)
 
 
 def get_visualization(img, img_mask=None, is_vertical=True):

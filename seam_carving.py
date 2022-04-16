@@ -43,7 +43,7 @@ def vertical_resize(image: NDArray, k: int, forward_implementation: bool):
     for i in range(np.abs(k)):
         if forward_implementation:
             cost_matrix = calculate_forward_cost_matrix(gray_image, gradients)
-            seam_mask = find_best_forward_seam(gray_image, cost_matrix, indices, gradients, seams_mask, i)
+            seam_mask = find_best_forward_seam(gray_image, cost_matrix, indices, gradients, seams_mask)
             gray_image = remove_seam(gray_image, seam_mask)
         else:
             cost_matrix = calculate_cost_matrix(gradients)
@@ -95,7 +95,7 @@ def calculate_forward_cost_matrix(img: NDArray, gradients: NDArray):
                 cost_matrix[row, col] = gradients[row, col] + min(
                     cost_matrix[row - 1, col - 1] + calc_cl(img, row, col),
                     cost_matrix[row - 1, col] + calc_cv(img, row, col),
-                    cost_matrix[row - 1, col + 1]) + calc_cr(img, row, col)
+                    cost_matrix[row - 1, col + 1] + calc_cr(img, row, col))
     return cost_matrix
 
 

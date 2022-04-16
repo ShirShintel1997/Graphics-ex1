@@ -77,54 +77,42 @@ def calculate_cost_matrix(gradients: NDArray):
                                             cost_matrix[row - 1, col + 1])
     return cost_matrix
 
-
 def calculate_forward_cost_matrix(img: NDArray, gradients: NDArray):
     cost_matrix = np.zeros_like(img)
-    for row in range(len(cost_matrix)):
-        for col in range(len(cost_matrix[0])):
-            if row == 0:
-                cost_matrix[row, col] = gradients[row, col]
-            elif col == 0:
-                cost_matrix[row, col] = gradients[row, col] + min(cost_matrix[row - 1, 0] + calc_cv(img, row, 0),
-                                                                  cost_matrix[row - 1, 1] + calc_cr(img, row, 0))
-            elif col == len(cost_matrix[0]) - 1:
-                cost_matrix[row, col] = gradients[row, col] + min(
-                    cost_matrix[row - 1, col - 1] + calc_cl(img, row, col),
-                    cost_matrix[row - 1, col] + calc_cv(img, row, col))
-            else:
-                cost_matrix[row, col] = gradients[row, col] + min(
-                    cost_matrix[row - 1, col - 1] + calc_cl(img, row, col),
-                    cost_matrix[row - 1, col] + calc_cv(img, row, col),
-                    cost_matrix[row - 1, col + 1] + calc_cr(img, row, col))
+    cost_matrix[0, : ] = gradients[0, : ]
+    left = np.roll(img, shift=1, axis=1)
+    left[:, 0] = 0  # Zero the first column in array
+    right = np.roll(img, shift=-1, axis=1)
+    right[:, -1] = 0  # Zero the last column in array
+    up = np.roll(img, shift=1, axis=0)
+    cv = np.abs(left - right)
+    cl = cv + np.abs(up-left)
+    cr = cv + np.abs(up-right)
+    for row in range(1, len(cost_matrix)):
+        cost_matrix[row, 0] = gradients[row, 0] + min(cost_matrix[row - 1, 0]
+            + np.abs(img[row, 1]-255),
+            cost_matrix[row - 1, 1] + np.abs(img[row, 1] - 255)
+            + np.abs(img[row - 1, 0] - img[row, 1]))
+        cost_matrix[row, len(cost_matrix[0]) - 1] = gradients[row, len(cost_matrix[0]) - 1] + min(
+            cost_matrix[row - 1, len(cost_matrix[0]) - 2] + np.abs(255 - img[row,len(cost_matrix[0]) - 2])
+                + np.abs(img[row-1, len(cost_matrix[0]) - 1] - img[row, len(cost_matrix[0]) - 2]),
+                cost_matrix[row - 1, len(cost_matrix[0]) - 1]
+                + np.abs(255-img[row, len(cost_matrix[0]) - 2]))
+        for col in range(1,len(cost_matrix[0])-1):
+            cost_matrix[row, col] = gradients[row, col] + min(
+                cost_matrix[row - 1, col - 1] + cl[row, col],
+                cost_matrix[row - 1, col] + cv[row, col],
+                cost_matrix[row - 1, col + 1] + cr[row, col])
     return cost_matrix
 
 
 def calc_cl(img: NDArray, i: int, j: int):
-    if j == 0:
-        return np.abs(img[i, j+1]-255) + np.abs(img[i-1, j]-255)
-    if j == len(img[0]) - 1 :
-        return np.abs(255-img[i,j-1]) + np.abs(img[i-1, j]-img[i,j-1])
     return np.abs(img[i, j+1]-img[i,j-1]) + np.abs(img[i-1, j]-img[i,j-1])
 
 def calc_cv(img: NDArray, i: int, j: int) :
-    if j == 0:
-        return np.abs(img[i, j+1]-255)
-    if j == len(img[0]) - 1 :
-        return np.abs(255-img[i,j-1])
     return np.abs(img[i, j+1]-img[i,j-1])
 
-def calc_cv(img: NDArray, i: int, j: int):
-    if j == 0:
-        return np.abs(img[i, j+1]-255) + np.abs(img[i-1, j]-img[i,j+1])
-    if j == len(img[0]) - 1 :
-        return np.abs(255-img[i,j-1]) + np.abs(img[i-1, j]-255)
-    return np.abs(img[i, j+1]-img[i,j-1]) + np.abs(img[i-1, j]-img[i,j+1])
-
 def calc_cr(img: NDArray, i: int, j: int):
-    if j == 0:
-        return np.abs(img[i, j + 1] - 255) + np.abs(img[i - 1, j] - img[i, j + 1])
-    if j == len(img[0]) - 1:
-        return np.abs(255 - img[i, j - 1]) + np.abs(img[i - 1, j] - 255)
     return np.abs(img[i, j + 1] - img[i, j - 1]) + np.abs(img[i - 1, j] - img[i, j + 1])
 
 
@@ -169,10 +157,6 @@ def find_best_forward_seam(img: NDArray, cost_matrix: NDArray, indices: NDArray,
                 min_cost_ind += 1
         else :
             min_cost_ind = np.argmin(cost_matrix[row])
-
-        # TODO: Asif added the next 2 lines trying to solve the problem with forward_implementation but there still is a problem
-        if min_cost_ind == seams_mask.shape[0]:
-            min_cost_ind -= 1
         current_seam_mask[row, min_cost_ind] = 0
         seams_mask[row, indices[row,min_cost_ind]] = 0
         row -= 1

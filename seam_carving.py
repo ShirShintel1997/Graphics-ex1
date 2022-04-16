@@ -58,23 +58,27 @@ def vertical_resize(image: NDArray, k: int, forward_implementation: bool):
 def create_indices_matrix(rows, cols):
     return np.array([[x for x in range(cols)] for y in range(rows)])
 
+def shift(arr, shft):
+    if shft == 1:
+        return np.concatenate((np.array([0]), arr[:-1]))
+    else:
+        return np.concatenate((arr[1:], np.array([0])))
 
 def calculate_cost_matrix(gradients: NDArray):
     cost_matrix = np.zeros_like(gradients).astype(float)
+    cost_matrix[0, :] = gradients[0, :]
     for row in range(len(cost_matrix)):
-        for col in range(len(cost_matrix[0])):
-            if row == 0:
-                cost_matrix[row, col] = gradients[row, col]
-            elif col == 0:
-                cost_matrix[row, col] = gradients[row, col] + \
-                                        min(cost_matrix[row - 1, col], cost_matrix[row - 1, col + 1])
-            elif col == len(cost_matrix[0]) - 1:
-                cost_matrix[row, col] = gradients[row, col] + \
-                                        min(cost_matrix[row - 1, col - 1], cost_matrix[row - 1, col])
-            else:
-                cost_matrix[row, col] = gradients[row, col] + \
-                                        min(cost_matrix[row - 1, col - 1], cost_matrix[row - 1, col],
-                                            cost_matrix[row - 1, col + 1])
+        cost_matrix[row, 0] = gradients[row, 0] + min(
+            cost_matrix[row - 1, 0], cost_matrix[row - 1, 1])
+        cost_matrix[row, len(cost_matrix[0]) - 1] = gradients[row, len(cost_matrix[0]) - 1] + min(
+            cost_matrix[row - 1, len(cost_matrix[0]) - 2],
+            cost_matrix[row - 1, len(cost_matrix[0]) - 1])
+        last_row = cost_matrix[row - 1, :]
+        cost_matrix[row, 1 : len(cost_matrix[0]) - 1] = gradients[row, 1 : len(cost_matrix[0]) - 1] + np.minimum(
+            np.minimum(
+                shift(last_row, 1)[1 : len(cost_matrix[0]) - 1],
+                last_row[1 : len(cost_matrix[0]) - 1]),
+            shift(last_row, -1)[1 : len(cost_matrix[0]) - 1])
     return cost_matrix
 
 def calculate_forward_cost_matrix(img: NDArray, gradients: NDArray):
@@ -98,11 +102,12 @@ def calculate_forward_cost_matrix(img: NDArray, gradients: NDArray):
                 + np.abs(img[row-1, len(cost_matrix[0]) - 1] - img[row, len(cost_matrix[0]) - 2]),
                 cost_matrix[row - 1, len(cost_matrix[0]) - 1]
                 + np.abs(255-img[row, len(cost_matrix[0]) - 2]))
-        for col in range(1,len(cost_matrix[0])-1):
-            cost_matrix[row, col] = gradients[row, col] + min(
-                cost_matrix[row - 1, col - 1] + cl[row, col],
-                cost_matrix[row - 1, col] + cv[row, col],
-                cost_matrix[row - 1, col + 1] + cr[row, col])
+        last_row = cost_matrix[row - 1, : ]
+        cost_matrix[row, 1 : len(cost_matrix[0]) - 1] = gradients[row, 1 : len(cost_matrix[0]) - 1] + np.minimum(
+            np.minimum(
+                shift(last_row, 1)[1 : len(cost_matrix[0]) - 1] + cl[row, 1 : len(cost_matrix[0])-1],
+                last_row[1 : len(cost_matrix[0]) - 1] + cv[row, 1 : len(cost_matrix[0])-1]),
+            shift(last_row, -1)[1 : len(cost_matrix[0]) - 1] + cr[row, 1 : len(cost_matrix[0])-1])
     return cost_matrix
 
 

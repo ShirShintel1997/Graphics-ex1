@@ -9,6 +9,7 @@ NDArray = Any
 
 VERTICAL_SEAM_COLOUR = np.array([255, 0, 0])
 HORIZONTAL_SEAM_COLOUR = np.array([0, 0, 0])
+EPSILON = 0.000000000001
 
 
 def resize(image: NDArray, out_height: int, out_width: int, forward_implementation: bool) -> Dict[str, NDArray]:
@@ -41,7 +42,7 @@ def vertical_resize(image: NDArray, k: int,forward_implementation: bool ) -> Dic
     for i in range(np.abs(k)):
         if forward_implementation:
             cost_matrix = calculate_forward_cost_matrix(gray_image, gradients)
-            seam_mask = find_best_forward_seam(gray_image, cost_matrix, indices, gradients, seams_mask)
+            seam_mask = find_best_forward_seam(gray_image, cost_matrix, indices, gradients, seams_mask, i)
             gray_image = remove_seam(gray_image, seam_mask)
         else:
             cost_matrix = calculate_cost_matrix(gradients)
@@ -73,7 +74,6 @@ def calculate_cost_matrix(gradients: NDArray):
     return cost_matrix
 
 def calculate_forward_cost_matrix(img: NDArray, gradients: NDArray):
-    print('here')
     cost_matrix = np.zeros_like(img)
     for row in range(len(cost_matrix)):
         for col in range(len(cost_matrix[0])):
@@ -88,28 +88,28 @@ def calculate_forward_cost_matrix(img: NDArray, gradients: NDArray):
             else:
                 cost_matrix[row, col] = gradients[row,col] + min(cost_matrix[row - 1, col - 1] + calc_cl(img, row, col),
                                                cost_matrix[row - 1, col] + calc_cv(img, row,col),
-                                               cost_matrix[row - 1, col + 1]) + calc_cr(img, row, col)
+                                               cost_matrix[row - 1, col + 1] + calc_cr(img, row, col))
     return cost_matrix
 
 
 def calc_cl(img: NDArray, i: int, j: int) :
     if j == 0:
         return np.abs(img[i, j+1]-255) + np.abs(img[i-1, j]-255)
-    if j == len(img) - 1 :
+    if j == len(img[0]) - 1 :
         return np.abs(255-img[i,j-1]) + np.abs(img[i-1, j]-img[i,j-1])
     return np.abs(img[i, j+1]-img[i,j-1]) + np.abs(img[i-1, j]-img[i,j-1])
 
 def calc_cv(img: NDArray, i: int, j: int) :
     if j == 0:
         return np.abs(img[i, j+1]-255)
-    if j == len(img) - 1 :
+    if j == len(img[0]) - 1 :
         return np.abs(255-img[i,j-1])
     return np.abs(img[i, j+1]-img[i,j-1])
 
 def calc_cr(img: NDArray, i: int, j: int) :
     if j == 0:
         return np.abs(img[i, j+1]-255) + np.abs(img[i-1, j]-img[i,j+1])
-    if j == len(img) - 1 :
+    if j == len(img[0]) - 1 :
         return np.abs(255-img[i,j-1]) + np.abs(img[i-1, j]-255)
     return np.abs(img[i, j+1]-img[i,j-1]) + np.abs(img[i-1, j]-img[i,j+1])
 
@@ -122,9 +122,9 @@ def find_best_seam(cost_matrix: NDArray, indices: NDArray, seams_mask: NDArray):
     col = 1
     while row >= 0 :
         if row < len(cost_matrix)-1: #when not in last row
-            min_cost_ind = col - 1 +np.argmin(cost_matrix[row-1, max(col-1,0): min(col+2, cols)])
-            if min_cost_ind < 0:
-                min_cost_ind = 0
+            min_cost_ind = col - 1 +np.argmin(cost_matrix[row, max(col-1,0): min(col+2, cols)])
+            if col == 0: # in this case min_cost_ind == -1 or 0, should be 0 or 1
+                min_cost_ind += 1
             elif min_cost_ind > cols:
                 min_cost_ind = cols
         else : #when in last row:
@@ -136,22 +136,27 @@ def find_best_seam(cost_matrix: NDArray, indices: NDArray, seams_mask: NDArray):
     return current_seam_mask
 
 
-def find_best_forward_seam(img: NDArray, cost_matrix: NDArray, indices: NDArray, gradients: NDArray, seams_mask: NDArray):
+def find_best_forward_seam(img: NDArray, cost_matrix: NDArray, indices: NDArray, gradients: NDArray, seams_mask: NDArray, i):
     current_seam_mask = np.ones_like(cost_matrix)
     row = len(cost_matrix) - 1
+    cols = len(cost_matrix[0]) - 1
     col = 0
     while row >= 0 :
-        if row < len(cost_matrix)-1:
-            if cost_matrix[row,col] == gradients[row,col] + cost_matrix[row-1,col]+ calc_cv(img, row, col):
+        if row < len(cost_matrix)-1 and row > 0:
+            if abs(cost_matrix[row,col] - (gradients[row,col] + cost_matrix[row-1,col]+ calc_cv(img, row, col)))<=EPSILON:
                 min_cost_ind = col
-            elif cost_matrix[row,col] == gradients[row,col] + cost_matrix[row-1,col-1]+ calc_cl(img, row, col):
-                min_cost_ind = col
+            elif abs(cost_matrix[row,col] - (gradients[row,col] + cost_matrix[row-1,col-1]+ calc_cl(img, row, col)))<=EPSILON:
+                min_cost_ind = col - 1
             else:
                 min_cost_ind = col + 1
+        elif row == 0:
+            min_cost_ind = col - 1 + np.argmin(cost_matrix[row, max(col - 1, 0): min(col + 2, cols)])
+            if col == 0:  # in this case min_cost_ind == -1 or 0, should be 0 or 1
+                min_cost_ind += 1
         else :
             min_cost_ind = np.argmin(cost_matrix[row])
         current_seam_mask[row, min_cost_ind] = 0
-        seams_mask[row, indices[min_cost_ind]] = 0
+        seams_mask[row, indices[row,min_cost_ind]] = 0
         row -= 1
         col = min_cost_ind
     return current_seam_mask
